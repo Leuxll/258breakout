@@ -2,7 +2,7 @@
 # This file contains our implementation of Breakout.
 #
 # Student 1: Yue Fung, 1007809052
-# Student 2: Name, Student Number
+# Student 2: Youssef Soliman, 1007715037
 ######################## Bitmap Display Configuration ########################
 # - Unit width in pixels:       8
 # - Unit height in pixels:      8
@@ -16,18 +16,15 @@
 # Immutable Data
 ##############################################################################
 # The address of the bitmap display. Don't forget to connect it!
-ADDR_DSPL:
-    .word 0x10008000
+.eqv ADDR_DSPL, 0x10008000
 # The address of the keyboard. Don't forget to connect it!
-ADDR_KBRD:
-    .word 0xffff0000
-# Colour Array
-MY_COLOURS:
-	.word 0xff0000	# red - bricks, offset = 0
-	.word 0x00ff00	# green - bricks, offset = 4
-	.word 0x0000ff	# blue - bricks, offset = 8
-	.word 0xffffff	# white - paddle and ball, offset = 12
-	.word 0x808080	# gray - walls, offset = 16
+.eqv ADDR_KBRD, 0xffff0000
+
+.eqv RED, 0xff0000 # bricks
+.eqv GREEN, 0x00ff00 # bricks
+.eqv BLUE, 0x0000ff # bricks
+.eqv WHITE, 0xffffff # paddle and ball
+.eqv GRAY, 0x808080 # walls
 	
 
 ##############################################################################
@@ -46,9 +43,8 @@ main:
     
     # Drawing the walls
     	# The Upper Wall
-    	la $a0, ADDR_DSPL
-    	lw $a0, 0($a0)
-    	la $a1, MY_COLOURS + 16
+    	li $a0, ADDR_DSPL
+    	li $a1, GRAY
     	li $a2, 64
     	jal draw_line
     	
@@ -63,7 +59,7 @@ main:
     	jal get_location_address
     	
     	addi $a0, $v0, 0
-    	la $a1, MY_COLOURS
+    	li $a1, RED
     	li $a2, 62
     	jal draw_line
     	
@@ -73,7 +69,7 @@ main:
     	jal get_location_address
     	
     	addi $a0, $v0, 0
-    	la $a1, MY_COLOURS + 4
+    	li $a1, GREEN
     	li $a2, 62
     	jal draw_line
     	
@@ -83,7 +79,7 @@ main:
     	jal get_location_address
     	
     	addi $a0, $v0, 0
-    	la $a1, MY_COLOURS + 8
+    	li $a1, BLUE
     	li $a2, 62
     	jal draw_line
     # Drawing the paddle
@@ -112,7 +108,7 @@ main:
 # BODY
 draw_line:
     # Retrieve the colour
-    lw $t0, 0($a1)              # colour = *colour_address
+    add $t0, $0, $a1
 
     # Iterate $a2 times, drawing each unit in the line
     li $t1, 0                   # i = 0
@@ -146,8 +142,7 @@ get_location_address:
 	# y_bytes = y * 256, we know that each row has 64 units and each one being 4 bytes, therefore 256
 	sll $a1, $a1, 8 # shifting logical left by 2 bits so that it multiplies by 2^8 = 4
 	# location_address = base_address + x_bytes + y_bytes
-	la $v0, ADDR_DSPL
-	lw $v0, 0($v0)
+	li $v0, ADDR_DSPL
 	add $v0, $a0, $v0
 	# return location_address
 	add $v0, $a1, $v0
