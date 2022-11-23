@@ -82,11 +82,28 @@ main:
     	li $a1, BLUE
     	li $a2, 62
     	jal draw_line
+
+
     # Drawing the paddle
+        li $a0, 27
+        li $a1, 30
+        jal get_location_address
+        
+        addi $a0, $v0, 0
+        la $a1, WHITE
+        li $a2, 10
+        jal draw_line
     
     
-    
-    # Draw the ball (at some inital location).
+    # Draw the ball (at some inital location)
+    	li $a0, 32
+    	li $a1, 28
+    	jal get_location_address
+    	
+    	addi $a0, $v0, 0
+    	la $a1, WHITE
+    	li $a2, 1
+    	jal draw_line
 	
     exit:
 	li $v0, 10
