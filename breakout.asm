@@ -122,6 +122,47 @@ main:
     	la $a1, WHITE
     	li $a2, 1
     	jal draw_horizontal_line
+    	
+    	
+game_loop:
+# 1a. Check if key has been pressed
+	
+	li $t0, ADDR_KBRD
+	lw $t1, 0($t0)
+	beq $t1, 1, keyboard_input
+	j game_loop
+	
+# If a key on the keyboard has been pressed then the location would become 1
+# We then want to load the second word from the keyboard to see which key was actually pressed, then branch accordingly
+keyboard_input:                 # A key is pressed
+    	lw $a0, 4($t0)        	# Load second word from keyboard
+    	beq $a0, 0x61, respond_to_a	# Check if the key a was pressed
+    	beq $a0, 0x64, respond_to_d 	# Check if the key d was pressed
+
+    	li $v0, 1                       # ask system to print $a0
+    	syscall
+
+    	j game_loop
+
+
+respond_to_a:
+	li $v0, 10                      # Quit gracefully
+	syscall
+	
+respond_to_d:
+	li $v0, 10                      # Quit gracefully
+	syscall
+	
+	
+# 1b. Check which key has been pressed
+# 2a. Check for collisions
+# 2b. Update locations (paddle, ball)
+	# 3. Draw the screen
+	# 4. Sleep
+
+    #5. Go back to 1
+    b game_loop
+    	
 	
     exit:
 	li $v0, 10
@@ -203,18 +244,6 @@ get_location_address:
 	
 	#EPILOGUE
 	jr $ra
-	
-	
-game_loop:
-	# 1a. Check if key has been pressed
-    # 1b. Check which key has been pressed
-    # 2a. Check for collisions
-	# 2b. Update locations (paddle, ball)
-	# 3. Draw the screen
-	# 4. Sleep
-
-    #5. Go back to 1
-    b game_loop
     
 
 	
