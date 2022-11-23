@@ -46,11 +46,29 @@ main:
     	li $a0, ADDR_DSPL
     	li $a1, GRAY
     	li $a2, 64
-    	jal draw_line
+    	jal draw_horizontal_line
     	
     	# Right Wall
     	
+    	li $a0, 63
+    	li $a1, 1
+    	jal get_location_address
+    	
+    	addi $a0, $v0, 0
+    	li $a1, GRAY
+    	li $a2, 31
+    	jal draw_veritcal_line
+    	
     	# Left Wall
+    	
+    	li $a0, 0
+    	li $a1, 1
+    	jal get_location_address
+    	
+    	addi $a0, $v0, 0
+    	li $a1, GRAY
+    	li $a2, 31
+    	jal draw_veritcal_line
     
     # Draw all the bricks. There should be at least three rows of bricks and at least three diﬀerent coloured bricks.
     	# Top Row
@@ -61,7 +79,7 @@ main:
     	addi $a0, $v0, 0
     	li $a1, RED
     	li $a2, 62
-    	jal draw_line
+    	jal draw_horizontal_line
     	
     	# Middle Row
     	li $a0, 1
@@ -71,7 +89,7 @@ main:
     	addi $a0, $v0, 0
     	li $a1, GREEN
     	li $a2, 62
-    	jal draw_line
+    	jal draw_horizontal_line
     	
     	# Bottom Row
     	li $a0, 1
@@ -81,7 +99,7 @@ main:
     	addi $a0, $v0, 0
     	li $a1, BLUE
     	li $a2, 62
-    	jal draw_line
+    	jal draw_horizontal_line
 
 
     # Drawing the paddle
@@ -92,7 +110,7 @@ main:
         addi $a0, $v0, 0
         la $a1, WHITE
         li $a2, 10
-        jal draw_line
+        jal draw_horizontal_line
     
     
     # Draw the ball (at some inital location)
@@ -103,48 +121,67 @@ main:
     	addi $a0, $v0, 0
     	la $a1, WHITE
     	li $a2, 1
-    	jal draw_line
+    	jal draw_horizontal_line
 	
     exit:
 	li $v0, 10
 	syscall
 
-# draw_line(start, colour_address, width) -> void
-#   Draw a line with width units horizontally across the display using the
+# draw_horizontal_line(start, colour_address, width) -> void
+#   Draw a horizontal line with width units horizontally across the display using the
 #   colour at colour_address and starting from the start address.
 #
 #   Preconditions:
 #       - The start address can "accommodate" a line of width units
-# PROLOGUE
-
-# addi $sp, $sp, -12
-# sw $s2, 8($sp)
-# sw $s1, 4($sp)
-# sw $s0, 0($sp)
 
 # BODY
-draw_line:
+draw_horizontal_line:
     # Retrieve the colour
     add $t0, $0, $a1
 
     # Iterate $a2 times, drawing each unit in the line
     li $t1, 0                   # i = 0
-draw_line_loop:
+draw_hline_loop:
     slt $t2, $t1, $a2           # i < width ?
-    beq $t2, $0, draw_line_epi  # if not, then done
+    beq $t2, $0, draw_horizontal_line_epi  # if not, then done
 
         sw $t0, 0($a0)          # Paint unit with colour
         addi $a0, $a0, 4        # Go to next unit
 
     addi $t1, $t1, 1            # i = i + 1
-    j draw_line_loop
+    j draw_hline_loop
 
-draw_line_epi:
-	# lw $s0, 0($sp)
-	# lw $s1, 4($sp)
-	# lw $s2, 8($sp)
-	# addi $sp, $sp, 12
+draw_horizontal_line_epi:
 	jr $ra
+
+
+# draw_veritcal_line(start, colour_address, legnth) -> void
+#   Draw a veritcal line with length units vertically along the display using the
+#   colour at colour_address and starting from the start address.
+#
+#   Preconditions:
+#       - The start address can "accommodate" a line of length units
+
+# BODY
+draw_veritcal_line:
+    # Retrieve the colour
+    add $t0, $0, $a1
+
+    # Iterate $a2 times, drawing each unit in the line
+    li $t1, 0                   # i = 0
+draw_vline_loop:
+    slt $t2, $t1, $a2           # i < length ?
+    beq $t2, $0, draw_vertical_line_epi  # if not, then done
+
+        sw $t0, 0($a0)          # Paint unit with colour
+        addi $a0, $a0, 256        # Go to next unit
+
+    addi $t1, $t1, 1            # i = i + 1
+    j draw_vline_loop
+
+draw_vertical_line_epi:
+	jr $ra
+
 
 # get_location_address(x, y) -> address
 #   Return the address of the unit on the display at location (x,y)
