@@ -11,7 +11,8 @@
 # - Base Address for Display:   0x10008000 ($gp)
 ##############################################################################
 
-    .data
+# .data
+# .word 0xFAFAFAFA
 ##############################################################################
 # Immutable Data
 ##############################################################################
@@ -25,7 +26,9 @@
 .eqv BLUE, 0x0000ff # bricks
 .eqv WHITE, 0xffffff # paddle and ball
 .eqv GRAY, 0x808080 # walls
-	
+.eqv BLACK, 0x000000 # background
+
+
 
 ##############################################################################
 # Mutable Data
@@ -40,104 +43,26 @@
 	# Run the Brick Breaker game.
 main:
     # Initialize the game, this is going to contain the full milestone one
-    
-    # Drawing the walls
-    	# The Upper Wall
-    	li $a0, ADDR_DSPL
-    	li $a1, GRAY
-    	li $a2, 64
-    	jal draw_horizontal_line
-    	
-    	# Right Wall
-    	
-    	li $a0, 63
-    	li $a1, 1
-    	jal get_location_address
-    	
-    	addi $a0, $v0, 0
-    	li $a1, GRAY
-    	li $a2, 31
-    	jal draw_veritcal_line
-    	
-    	# Left Wall
-    	
-    	li $a0, 0
-    	li $a1, 1
-    	jal get_location_address
-    	
-    	addi $a0, $v0, 0
-    	li $a1, GRAY
-    	li $a2, 31
-    	jal draw_veritcal_line
-    
-    # Draw all the bricks. There should be at least three rows of bricks and at least three diﬀerent coloured bricks.
-    	# Top Row
-    	li $a0, 1
-    	li $a1, 1
-    	jal get_location_address
-    	
-    	addi $a0, $v0, 0
-    	li $a1, RED
-    	li $a2, 62
-    	jal draw_horizontal_line
-    	
-    	# Middle Row
-    	li $a0, 1
-    	li $a1, 2
-    	jal get_location_address
-    	
-    	addi $a0, $v0, 0
-    	li $a1, GREEN
-    	li $a2, 62
-    	jal draw_horizontal_line
-    	
-    	# Bottom Row
-    	li $a0, 1
-    	li $a1, 3
-    	jal get_location_address
-    	
-    	addi $a0, $v0, 0
-    	li $a1, BLUE
-    	li $a2, 62
-    	jal draw_horizontal_line
-
-
-    # Drawing the paddle
-        li $a0, 27
-        li $a1, 30
-        jal get_location_address
-        
-        addi $a0, $v0, 0
-        la $a1, WHITE
-        li $a2, 10
-        jal draw_horizontal_line
-    
-    
-    # Draw the ball (at some inital location)
-    	li $a0, 32
-    	li $a1, 28
-    	jal get_location_address
-    	
-    	addi $a0, $v0, 0
-    	la $a1, WHITE
-    	li $a2, 1
-    	jal draw_horizontal_line
-    	
+    jal draw_walls
+    jal draw_bricks
+    jal draw_ball
+    jal draw_paddle
     	
 game_loop:
-# 1a. Check if key has been pressed
+	# 1a. Check if key has been pressed
 	
 	li $t0, ADDR_KBRD
 	lw $t1, 0($t0)
 	beq $t1, 1, keyboard_input
 	j game_loop
 	
-# If a key on the keyboard has been pressed then the location would become 1
-# We then want to load the second word from the keyboard to see which key was actually pressed, then branch accordingly
+	# If a key on the keyboard has been pressed then the location would become 1
+	# We then want to load the second word from the keyboard to see which key was actually pressed, then branch accordingly
 keyboard_input:                 # A key is pressed
     	lw $a0, 4($t0)        	# Load second word from keyboard
     	beq $a0, 0x61, respond_to_a	# Check if the key a was pressed
     	beq $a0, 0x64, respond_to_d 	# Check if the key d was pressed
+    	beq $a0, 0x71, exit	     # Check if the key q was pressed, quit the game
 
     	li $v0, 1                       # ask system to print $a0
     	syscall
@@ -146,27 +71,46 @@ keyboard_input:                 # A key is pressed
 
 
 respond_to_a:
-	li $v0, 10                      # Quit gracefully
-	syscall
-	
+	jal reset_screen
+	b game_loop
 respond_to_d:
-	li $v0, 10                      # Quit gracefully
-	syscall
+	li $v0, 1                       # ask system to print $a0
+    	syscall
+	b game_loop
 	
-	
-# 1b. Check which key has been pressed
-# 2a. Check for collisions
-# 2b. Update locations (paddle, ball)
+	# 1b. Check which key has been pressed
+	# 2a. Check for collisions
+	# 2b. Update locations (paddle, ball)
 	# 3. Draw the screen
 	# 4. Sleep
 
-    #5. Go back to 1
-    b game_loop
+    	#5. Go back to 1
     	
 	
-    exit:
+exit:
 	li $v0, 10
 	syscall
+
+# reset_screen() -> void
+# 	Paints the whole screen black.
+# BODY
+reset_screen:	
+	li $s0, 0
+	li $s1, 32
+screen_loop:
+	beq $s0, $s1, reset_screen_epi
+	
+		li $a0, ADDR_DSPL
+    		li $a1, BLACK
+    		li $a2, 64
+    		jal draw_horizontal_line
+    		
+    	addi $a0, $a0, 256
+    	addi $s0, $s0, 1
+    	j screen_loop
+reset_screen_epi:
+	jr $ra
+
 
 # draw_horizontal_line(start, colour_address, width) -> void
 #   Draw a horizontal line with width units horizontally across the display using the
@@ -244,6 +188,99 @@ get_location_address:
 	
 	#EPILOGUE
 	jr $ra
-    
+
+
+# draw_wall() -> void
+#   Draws the walls for the game every single time this function is called.
+#
+draw_walls:
+	# BODY
+	# Drawing the walls
+    	# The Upper Wall
+    	li $a0, ADDR_DSPL
+    	li $a1, GRAY
+    	li $a2, 64
+    	jal draw_horizontal_line
+    	
+    	# Right Wall
+    	
+    	li $a0, 63
+    	li $a1, 1
+    	jal get_location_address
+    	
+    	addi $a0, $v0, 0
+    	li $a1, GRAY
+    	li $a2, 31
+    	jal draw_veritcal_line
+    	
+    	# Left Wall
+    	
+    	li $a0, 0
+    	li $a1, 1
+    	jal get_location_address
+    	
+    	addi $a0, $v0, 0
+    	li $a1, GRAY
+    	li $a2, 31
+    	jal draw_veritcal_line
+	
+	#EPILOGUE
+	jr $ra
+	
+	
+draw_bricks:
+    # Draw all the bricks. There should be at least three rows of bricks and at least three diﬀerent coloured bricks.
+    # Top Row
+    	li $a0, 1
+    	li $a1, 1
+    	jal get_location_address
+    	
+    	addi $a0, $v0, 0
+    	li $a1, RED
+    	li $a2, 62
+    	jal draw_horizontal_line
+    	
+    # Middle Row
+    	li $a0, 1
+    	li $a1, 2
+    	jal get_location_address
+    	
+    	addi $a0, $v0, 0
+    	li $a1, GREEN
+    	li $a2, 62
+    	jal draw_horizontal_line
+    	
+    # Bottom Row
+    	li $a0, 1
+    	li $a1, 3
+    	jal get_location_address
+    	
+    	addi $a0, $v0, 0
+    	li $a1, BLUE
+    	li $a2, 62
+    	jal draw_horizontal_line
+
+
+draw_paddle:
+    # Drawing the paddle
+    li $a0, 27
+    li $a1, 30
+    jal get_location_address
+        
+    addi $a0, $v0, 0
+    la $a1, WHITE
+    li $a2, 10
+    jal draw_horizontal_line
+
+draw_ball:
+    # Draw the ball (at some inital location)
+    li $a0, 32
+    li $a1, 28
+    jal get_location_address
+    	
+    addi $a0, $v0, 0
+    la $a1, WHITE
+    li $a2, 1
+    jal draw_horizontal_line
 
 	
