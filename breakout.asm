@@ -313,8 +313,8 @@ draw_hline_loop:
     slt $t2, $t1, $a2           # i < width ?
     beq $t2, $0, draw_horizontal_line_epi  # if not, then done
 
-        sw $t0, 0($a0)          # Paint unit with colour
-        addi $a0, $a0, 4        # Go to next unit
+    sw $t0, 0($a0)          # Paint unit with colour
+    addi $a0, $a0, 4        # Go to next unit
 
     addi $t1, $t1, 1            # i = i + 1
     j draw_hline_loop
@@ -495,7 +495,6 @@ draw_paddle:
 	addi $sp, $sp, 4
 	jr $ra
 
-
 	#EPILOGUE
     lw $ra, 0($sp)
     addi $sp, $sp, 4
@@ -643,6 +642,31 @@ update_ball:
     sw $s1, 8($sp)
 	jr $ra
 
+	#EPILOGUE
+	lw $ra, 0($sp)
+    addi $sp, $sp, 4
+    jr $ra
+
+
+# shift_paddle(x, curr_x) -> void
+#   Paddle shifts from curr_x by x units
+#	If x is positive, then the paddle shifts right
+#	If x is negative, then the paddle shifts left.
+shift_paddle:
+	# PROLOGUE
+	addi $sp, $sp, -4
+	sw $ra, 0($sp)
+
+	# BODY
+	# If x is positive, then the paddle shifts right
+	# If x is negative, then the paddle shifts left.
+	# If x is 0, then the paddle does not shift.
+	add $a0, $a0, $a1
+	# If the paddle is going to go out of bounds, then do not shift the paddle.
+	slt $t0, $0, $a0 
+	slti $t1, $a0, 53
+	and $t0, $t0, $t1
+	beq $t0, $0, noJump
 	
 clear_screen:
 	li $t0, ADDR_DSPL # iterator
