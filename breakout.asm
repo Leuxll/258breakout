@@ -32,6 +32,16 @@
 .eqv WALL_COLOR, GRAY
 .eqv BACKGROUND_COLOR, BLACK
 
+HEART_BITMAP:
+.byte 0x00
+.byte 0x66
+.byte 0xff
+.byte 0xff
+.byte 0x7e
+.byte 0x3c
+.byte 0x18
+.byte 0x00
+
 ##############################################################################
 # Key Mappings
 ##############################################################################
@@ -261,8 +271,8 @@ draw_vline_loop:
     slt $t2, $t1, $a2           # i < length ?
     beq $t2, $0, draw_vertical_line_epi  # if not, then done
 
-        sw $t0, 0($a0)          # Paint unit with colour
-        addi $a0, $a0, 256        # Go to next unit
+    sw $t0, 0($a0)          # Paint unit with colour
+    addi $a0, $a0, 256        # Go to next unit
 
     addi $t1, $t1, 1            # i = i + 1
     j draw_vline_loop
@@ -381,23 +391,26 @@ draw_brick_line_loop_2:
 
 # draw_wall() -> void
 #   Draws the walls for the game every single time this function is called.
-#
 draw_walls:
 	addi $sp, $sp, -4
 	sw $ra, 0($sp)
 	# BODY
 	# Drawing the walls
-    	# The Upper Wall
-    	li $a0, ADDR_DSPL
-    	li $a1, GRAY
-    	li $a2, 64
-    	jal draw_horizontal_line
+    # The Upper Wall
+    li $a0, ADDR_DSPL
+    li $a1, GRAY
+    li $a2, 64
+    jal draw_horizontal_line
     	
-    	# Right Wall
+    # Right Wall
+    li $a0, 63
+    li $a1, 1
+    jal get_location_address
     	
-    	li $a0, 63
-    	li $a1, 1
-    	jal get_location_address
+    addi $a0, $v0, 0
+    li $a1, GRAY
+    li $a2, 31
+    jal draw_veritcal_line
     	
     	addi $a0, $v0, 0
     	li $a1, GRAY
@@ -421,6 +434,9 @@ draw_walls:
 	jr $ra
 	
 	
+
+# draw_bricks() -> void
+#   Draws the bricks for the game every single time this function is called.
 draw_bricks:
 	addi $sp, $sp, -4
 	sw $ra, 0($sp)
@@ -457,6 +473,8 @@ draw_bricks:
 	jr $ra
 
 
+# draw_paddle() -> void
+#   Draws the paddle for the game every single time this function is called.
 draw_paddle:
 	addi $sp, $sp, -4
 	sw $ra, 0($sp)
@@ -469,7 +487,7 @@ draw_paddle:
     jal get_location_address
         
     addi $a0, $v0, 0
-    la $a1, WHITE
+    li $a1, WHITE
     li $a2, 10
     jal draw_horizontal_line
     
@@ -478,6 +496,14 @@ draw_paddle:
 	jr $ra
 
 
+	#EPILOGUE
+    lw $ra, 0($sp)
+    addi $sp, $sp, 4
+    jr $ra
+
+
+# draw_ball() -> void
+#   Draws the ball every single time this function is called.
 draw_ball:
 	addi $sp, $sp, -4
 	sw $ra, 0($sp)
@@ -637,4 +663,89 @@ clear_screen_return:
 	jr $ra
     
 
+	#EPILOGUE
+	lw $ra, 0($sp)
+    addi $sp, $sp, 4
+    jr $ra
+
+
+# shift_paddle(x, curr_x) -> void
+#   Paddle shifts from curr_x by x units
+#	If x is positive, then the paddle shifts right
+#	If x is negative, then the paddle shifts left.
+shift_paddle:
+	# PROLOGUE
+	addi $sp, $sp, -4
+	sw $ra, 0($sp)
+
+	# BODY
+	# If x is positive, then the paddle shifts right
+	# If x is negative, then the paddle shifts left.
+	# If x is 0, then the paddle does not shift.
+	add $a0, $a0, $a1
+	# If the paddle is going to go out of bounds, then do not shift the paddle.
+	slt $t0, $0, $a0 
+	slti $t1, $a0, 53
+	and $t0, $t0, $t1
+	beq $t0, $0, noJump
 	
+    li $a1, 30
+    jal get_location_address
+
+	addi $a0, $v0, 0
+    li $a1, WHITE
+    li $a2, 10
+    jal draw_horizontal_line
+
+	# EPILOGUE
+	lw $ra, 0($sp)
+	addi $sp, $sp, 4
+	jr $ra
+
+noJump:
+
+# detect_game_over(y) -> void
+#   Detects if the game is over or not.
+#	If the ball is at the bottom of the screen, then the game is over.
+#	If the ball is not at the bottom of the screen, then loop back to game loop
+	beq $a0, $0, game_over
+	j game_loop
+
+# game_over() -> void
+#   Displays the game over message and exits the game.
+game_over:
+	# Exit the game
+	li $v0, 10
+	syscall
+
+
+#draw_hearts(start, bitmap_address) -> void
+#   Draws the hearts for the game every single time this function is called.
+draw_heart:
+	# PROLOGUE
+	addi $sp, $sp, -4
+	sw $ra, 0($sp)
+
+	# BODY
+	# Draw the hearts
+	# Retrieve the address of the first 8 bits
+	lw $t0, 0($a1)
+
+	# loop_through_bytes(start, byte) -> void
+	#   Loops through the bytes of the bitmap and draws the pixels.
+	loop_through_a_byte:
+		li $t1, RED
+		# Getting the first bit of the byte
+		lw $t2, 0($a1)
+		# Draw the brick if the brick is 1
+		beqz $t2, skip_brick_line_loop_1_draw
+			sw $t1, 0($a0)
+		skip_brick_line_loop_1_draw:
+		addiu $a0, $a0, 4
+		srl $t2, $t2, 2 # Shift the byte to the right by 2
+		bne $t2, $0, draw_brick_line_loop_1
+
+	srl $t0, $t0, 1 # Shift the byte to the right by 1
+	bne $t0, $0, loop_through_a_byte
+
+		jr $ra
