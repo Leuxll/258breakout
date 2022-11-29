@@ -83,6 +83,7 @@ BRICKS_LAYER_3:
 	# Run the Brick Breaker game.
 main:
     # Initialize the game, this is going to contain the full milestone one
+    jal draw_initial_bricks
 
 	# Enter the game loop
 	game_loop:
@@ -115,6 +116,10 @@ main:
 
     #5. Go back to 1
     j game_loop
+    
+exit:
+	li $v0, 10
+    syscall
 	
 # """
 # read_keyboard()
@@ -145,8 +150,7 @@ read_keyboard:
 
         # If Q is pressed, quit
         bne $t2, VK_Q, else_2_0
-            li $v0, 10
-            syscall
+            j exit
         else_2_0:
 
         # If Space is pressed
@@ -317,15 +321,17 @@ draw_vertical_line_epi:
 #       - The start address can "accommodate" a line of width units
 
 # BODY
-draw_brick_line:
+draw_initial_brick_line:
     # Retrieve the colour
     lw $t0, 0($a1)
+    # Set the higher order byte to 1 in order to indicate an active brick
+    ori $t0, $t0, 0x1000000
     # Get the first 32 bits
     lw $t1, 4($a1)
     # Get the next 32 bits
     lw $t2, 8($a1)
 
-draw_brick_line_loop_1:
+draw_initial_brick_line_loop_1:
 	# Grab the LSB
 	andi $t3, $t1, 1
 	# Draw the brick if the brick is 1
@@ -334,20 +340,42 @@ draw_brick_line_loop_1:
 	skip_brick_line_loop_1_draw:
 	addiu $a0, $a0, 4
 	srl $t1, $t1, 1
-    bne $t1, $0, draw_brick_line_loop_1
+    bne $t1, $0, draw_initial_brick_line_loop_1
     
-draw_brick_line_loop_2:
+draw_initial_brick_line_loop_2:
 	# Grab the LSB
 	andi $t3, $t2, 1
 	# Draw the brick if the brick is 1
-	beqz $t3, skip_brick_line_loop_2_draw
+	beqz $t3, skip_initial_brick_line_loop_2_draw
 		sw $t0, 0($a0)
-	skip_brick_line_loop_2_draw:
+	skip_initial_brick_line_loop_2_draw:
 	addiu $a0, $a0, 4
 	srl $t2, $t2, 1
-    bne $t2, $0, draw_brick_line_loop_2
+    bne $t2, $0, draw_initial_brick_line_loop_2
 
 	jr $ra
+	
+draw_brick_line:
+	# Retrieve the colour
+    lw $t0, 0($a1)
+    
+    addiu $t1, $a0, 256 # Max iteration
+    
+    draw_brick_line_loop:
+    beq $t1, $a0, finish_brick_line
+    	lw $t2, 0($a0)
+    	andi $t2, $t2, 0xFF000000 # Get the higher order byte
+    	# Only draw active bricks
+    	beqz $t2, skip_brick
+    		# Restore the higher order byte
+    		or $t0, $t0, $t2 
+    		sw $t0, 0($a0)
+    	skip_brick:
+    	addiu $a0, $a0, 4
+    	j draw_brick_line_loop
+    
+    finish_brick_line:
+    jr $ra
 
 
 # draw_wall() -> void
@@ -392,6 +420,41 @@ draw_walls:
 	jr $ra
 	
 	
+draw_initial_bricks:
+	addi $sp, $sp, -4
+	sw $ra, 0($sp)
+    # Draw all the bricks. There should be at least three rows of bricks and at least three diﬀerent coloured bricks.
+    # Top Row
+    	li $a0, 0
+    	li $a1, 1
+    	jal get_location_address
+    	
+    	addi $a0, $v0, 0
+    	la $a1, BRICKS_LAYER_1
+    	jal draw_initial_brick_line
+    	
+    # Middle Row
+    	li $a0, 0
+    	li $a1, 2
+    	jal get_location_address
+    	
+    	addi $a0, $v0, 0
+    	la $a1, BRICKS_LAYER_2
+    	jal draw_initial_brick_line
+    	
+    # Bottom Row
+    	li $a0, 0
+    	li $a1, 3
+    	jal get_location_address
+    	
+    	addi $a0, $v0, 0
+    	la $a1, BRICKS_LAYER_3
+    	jal draw_initial_brick_line
+    	
+    lw $ra, 0($sp)
+	addi $sp, $sp, 4
+	jr $ra
+
 draw_bricks:
 	addi $sp, $sp, -4
 	sw $ra, 0($sp)
@@ -426,7 +489,6 @@ draw_bricks:
     lw $ra, 0($sp)
 	addi $sp, $sp, 4
 	jr $ra
-
 
 draw_paddle:
 	addi $sp, $sp, -4
@@ -492,11 +554,16 @@ update_paddle:
 	jr $ra
 	
 update_ball:
-    # Save items onto the stack: ra, s0, s1
-    addi $sp, $sp, -12
-    sw $ra, 0($sp)
-    sw $s0, 4($sp)
-    sw $s1, 8($sp)
+    # Save items onto the stack
+    addi $sp, $sp, -32
+    sw $s0, 0($sp)
+    sw $s1, 4($sp)
+    sw $s2, 8($sp)
+    sw $s3, 12($sp)
+    sw $s4, 16($sp)
+    sw $s5, 20($sp)
+    sw $s6, 24($sp)
+    sw $ra, 28($sp)
 
 	lb $t0, GAME_STATE
 	bnez $t0, ball_unpaused_game_state
@@ -534,6 +601,10 @@ update_ball:
 	sle $t0, $s6, 4
 	bnez $t0, bounce_ball_y
 	
+	# if ball.y > 4 * 64, end the game
+	sge $t0, $s6, 260
+	bnez $t0, exit
+	
 	# if ball.y == paddle.y and paddle.x <= ball.x <= paddle.x + 10 units, flip the y velocity
 		# paddle.y
 		lw $t0, PADDLE + 4
@@ -555,7 +626,29 @@ update_ball:
 		and $t0, $t0, $t1
 	bnez $t0, bounce_ball_y
 	
-	j update_ball_positions
+	# if ball.x and ball.y == an active brick
+		srl $a0, $s3, 3
+		srl $a1, $s6, 3
+    	jal get_location_address
+    	lw $t0, 0($v0)
+		andi $t1, $t0, 0xFF000000 # Grab the high byte
+		beqz $t1, update_ball_positions # Skip if the position doesn't contain a brick
+			# Break the brick
+			andi $t0, $t0, 0xFFFFFF # Grab the bottom 3 bytes
+			sw $t0, 0($v0)
+			
+			#if ball.oldx / 8 == ball.x / 8 (ball is attacking from x direction), flip x velocity
+			srl $t0, $s1, 3
+			srl $t1, $s3, 3
+			beq $t0, $t1, bounce_ball_x
+			
+			#if ball.oldy / 8 == ball.y / 8 (ball is attacking from y direction), flip y velocity
+			srl $t0, $s5, 3
+			srl $t1, $s6, 3
+			beq $t0, $t1, bounce_ball_y
+			
+			# else, flip both x and y velocity
+			j bounce_ball_both
 	
 	bounce_ball_x:
 		# Make x velocity negative
@@ -565,6 +658,17 @@ update_ball:
 	j update_ball_positions
 	
 	bounce_ball_y:
+		# Make y velocity negative
+		sub $s4, $0, $s4
+		sb $s4, BALL + 9
+		add $s6, $s4, $s5
+	j update_ball_positions
+	
+	bounce_ball_both:
+		# Make x velocity negative
+		sub $s0, $0, $s0
+		sb $s0, BALL + 8
+		add $s3, $s0, $s1
 		# Make y velocity negative
 		sub $s4, $0, $s4
 		sb $s4, BALL + 9
@@ -582,10 +686,15 @@ update_ball:
 	
 	update_ball_finish:
 	# Retrieve items from stack
-    addi $sp, $sp, -12
-    sw $ra, 0($sp)
-    sw $s0, 4($sp)
-    sw $s1, 8($sp)
+    lw $s0, 0($sp)
+    lw $s1, 4($sp)
+    lw $s2, 8($sp)
+    lw $s3, 12($sp)
+    lw $s4, 16($sp)
+    lw $s5, 20($sp)
+    lw $s6, 24($sp)
+    lw $ra, 28($sp)
+    addi $sp, $sp, 28
 	jr $ra
 
 	
@@ -599,7 +708,10 @@ clear_screen:
 	
 clear_screen_body:
 	bge $t0, $t1, clear_screen_return
-	sw $t2, 0($t0) # draw the background color to the screen
+	lw $t3, 0($t0)
+	andi $t3, $t3, 0xFF000000 # Get the higher order byte
+	or $t3, $t3, $t2 # Merge the higher order byte with the background color
+	sw $t3, 0($t0) # Draw the background color to the screen
 	
 	addi $t0, $t0, 4
 	j clear_screen_body
