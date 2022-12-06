@@ -23,6 +23,9 @@
 .eqv RED, 0xff0000 # bricks
 .eqv GREEN, 0x00ff00 # bricks
 .eqv BLUE, 0x0000ff # bricks
+.eqv DEEP_PINK, 0xff1493 # bricks
+.eqv CHOCOLATE, 0xd2691e # bricks
+.eqv SKY_BLUE, 0x00bfff # bricks
 .eqv WHITE, 0xffffff
 .eqv GRAY, 0x808080
 .eqv BLACK, 0x0
@@ -39,6 +42,7 @@
 .eqv VK_LEFT_ARROW, 0x25
 .eqv VK_RIGHT_ARROW, 0x27
 .eqv VK_Q, 0x51
+.eqv VK_P, 0x50
 .eqv VK_SPACE, 0x20
 
 ##############################################################################
@@ -58,22 +62,100 @@ PADDLE:
 	
 GAME_STATE:
 	.byte 0x0 # state (0 -> waiting to start; 1 -> playing level; 2 -> game over screen)
+	.byte 0x0 # paused (whether or not we are paused)
+	.byte 0x3 # lives
 	.word 0x0 # score
-	
+
+# Level 1
 BRICKS_LAYER_1:
 	.word BLUE
 	.word 0xfffffffe
 	.word 0x7fffffff
 	
 BRICKS_LAYER_2:
-	.word RED
+	.word GREEN
 	.word 0xfffffffe
 	.word 0x7fffffff
 	
 BRICKS_LAYER_3:
-	.word GREEN
+	.word RED
 	.word 0xfffffffe
 	.word 0x7fffffff
+##############################################################################
+# Bitmaps
+##############################################################################
+HEART_BITMAP:
+.word 0x000000
+.word 0xed1c24
+.word 0xed1c24
+.word 0x000000
+.word 0x000000
+.word 0xed1c24
+.word 0xed1c24
+.word 0x000000
+
+.word 0xed1c24
+.word 0xed1c24
+.word 0xed1c24
+.word 0xed1c24
+.word 0xed1c24
+.word 0xed1c24
+.word 0xed1c24
+.word 0xed1c24
+
+.word 0xed1c24
+.word 0x000000
+.word 0xed1c24
+.word 0xed1c24
+.word 0xed1c24
+.word 0xed1c24
+.word 0xed1c24
+.word 0xed1c24
+
+.word 0xed1c24
+.word 0xed1c24
+.word 0xed1c24
+.word 0xed1c24
+.word 0xed1c24
+.word 0xed1c24
+.word 0xed1c24
+.word 0xed1c24
+
+.word 0xc40424
+.word 0xed1c24
+.word 0xed1c24
+.word 0xed1c24
+.word 0xed1c24
+.word 0xed1c24
+.word 0xed1c24
+.word 0xc40424
+
+.word 0x000000
+.word 0xc40424
+.word 0xed1c24
+.word 0xed1c24
+.word 0xed1c24
+.word 0xed1c24
+.word 0xc40424
+.word 0x000000
+
+.word 0x000000
+.word 0x000000
+.word 0xc40424
+.word 0xed1c24
+.word 0xed1c24
+.word 0xc40424
+.word 0x000000
+.word 0x000000
+
+.word 0x000000
+.word 0x000000
+.word 0x000000
+.word 0xc40424
+.word 0xc40424
+.word 0x000000
+.word 0x000000
+.word 0x000000
 ##############################################################################
 # Code
 ##############################################################################
@@ -94,8 +176,11 @@ main:
     # 2a. Check for collisions
 	# 2b. Update locations (paddle, ball)
 	
-	jal update_paddle
-	jal update_ball
+	lbu $t0, GAME_STATE + 1
+	beq $t0, 1, skip_updates
+		jal update_paddle
+		jal update_ball
+	skip_updates:
 	
 	# 3. Draw the screen
 	jal clear_screen
@@ -103,6 +188,10 @@ main:
     jal draw_bricks
     jal draw_ball
     jal draw_paddle
+    
+    #li $a0, ADDR_DSPL
+	#la $a1, HEART_BITMAP
+	#jal draw_bitmap_with_different_colors
     
     # Tell the display to update by writing to max + 1 offset
 	li $t8, ADDR_DSPL
@@ -117,9 +206,49 @@ main:
     #5. Go back to 1
     j game_loop
     
+remove_life:
+	lb $t3, GAME_STATE + 2
+    subi $t3, $t3, 1
+    beqz $t3, exit
+    sb $t3, GAME_STATE + 2
+    j reset_ball_and_paddle    
+
 exit:
+	# Play a noise
+	li $a0, 60
+	li $a1, 1000
+	li $a2, 85
+	li $a3, 75
+	li $v0, 31
+	syscall
 	li $v0, 10
     syscall
+	
+# reset_ball_and_paddle() -> void
+# Resets the ball and the paddle to the original position
+reset_ball_and_paddle:
+    # Resetting the ball
+    li $t4, 256
+    sw $t4, BALL
+    li $t4, 224
+    sw $t4, BALL + 4
+    li $t4, 0
+    sb $t4, BALL + 8
+    sb $t4, BALL + 9
+    
+    #Resetting the paddle
+    li $t4, 216
+    sw $t4, PADDLE
+    li $t4, 240
+    sw $t4, PADDLE + 4
+    li $t4, 0
+    sb $t4, PADDLE + 8
+    
+    # Resetting the game state
+    li $t4, 0
+    sb $t4, GAME_STATE
+    
+    j game_loop
 	
 # """
 # read_keyboard()
@@ -152,6 +281,14 @@ read_keyboard:
         bne $t2, VK_Q, else_2_0
             j exit
         else_2_0:
+        
+        # If P is pressed, pause
+        bne $t2, VK_P, else_5_0
+            lbu $t0, GAME_STATE + 1
+            xori  $t0, $t0, 1
+            sb $t0, GAME_STATE + 1
+        else_5_0:
+
 
         # If Space is pressed
         bne $t2, VK_SPACE, else_2_2
@@ -324,8 +461,8 @@ draw_vertical_line_epi:
 draw_initial_brick_line:
     # Retrieve the colour
     lw $t0, 0($a1)
-    # Set the higher order byte to 1 in order to indicate an active brick
-    ori $t0, $t0, 0x1000000
+    # Set the higher order byte to 2 in order to indicate an active brick with 2 lives
+    ori $t0, $t0, 0x2000000
     # Get the first 32 bits
     lw $t1, 4($a1)
     # Get the next 32 bits
@@ -361,15 +498,41 @@ draw_brick_line:
     
     addiu $t1, $a0, 256 # Max iteration
     
+    ## t0 - original color
+    ## t1 - max iteration
+    ## t2 - high order byte
+    ## t3 - color to draw
+    ## t4 - temp
+    
     draw_brick_line_loop:
     beq $t1, $a0, finish_brick_line
     	lw $t2, 0($a0)
+    	add $t3, $t0, $0 # copy the color
     	andi $t2, $t2, 0xFF000000 # Get the higher order byte
     	# Only draw active bricks
     	beqz $t2, skip_brick
+    	
+    		# shade the brick darker if its level 1
+    		bne $t2, 0x01000000, skip_darker_shade
+    			# grab top byte
+    			srl $t4, $t0, 17 # grab while dividing by two
+    			sll $t3, $t4, 8 # Store top byte and shift
+    			
+    			# grab second byte
+    			srl $t4, $t0, 8 # grab
+    			and $t4, $t4, 0xFF # Mask for only the second byte
+    			srl $t4, $t4, 1 # divide by two
+    			or $t3, $t3, $t4 # Store second byte
+    			sll $t3, $t3, 8 # Shift for bottom byte
+    			
+    			and $t4, $t0, 0xFF # Mask for only the second byte
+    			srl $t4, $t4, 1 # Divide color by two
+    			or $t3, $t3, $t4 # Store third byte
+    		skip_darker_shade:
+    	
     		# Restore the higher order byte
-    		or $t0, $t0, $t2 
-    		sw $t0, 0($a0)
+    		or $t3, $t3, $t2 
+    		sw $t3, 0($a0)
     	skip_brick:
     	addiu $a0, $a0, 4
     	j draw_brick_line_loop
@@ -531,6 +694,31 @@ draw_ball:
 	addi $sp, $sp, 4
 	jr $ra
 	
+# draw_bitmap_with_different_colors(start_location_address, bitmap_address) -> void
+# Draws any 8x8 bitmaps that has different colors for each pixel.
+draw_bitmap_with_different_colors:
+    # Setting up the loop
+    la $s0, 0($a0)
+    li $s1, 0
+    li $s2, 8
+    loop_through_rows:
+        li $s3, 0
+        li $s4, 8
+        loop_through_elements_in_row:
+            lw $t1, 0($a1)
+            beqz $t1, skip_pixel
+            sw $t1, 0($s0)
+    
+        skip_pixel:
+            addiu $a1, $a1, 4
+            addiu $s0, $s0, 4
+            addi $s3, $s3, 1
+        bne $s3, $s4, loop_through_elements_in_row
+    addiu $s0, $s0, 224
+    addi $s1, $s1, 1
+    bne $s2, $s1, loop_through_rows
+    jr $ra
+	
 update_paddle:
     lb $t0, PADDLE + 8
 	lw $t1, PADDLE
@@ -601,9 +789,9 @@ update_ball:
 	sle $t0, $s6, 4
 	bnez $t0, bounce_ball_y
 	
-	# if ball.y > 4 * 64, end the game
+	# if ball.y > 4 * 64, remove a life
 	sge $t0, $s6, 260
-	bnez $t0, exit
+	bnez $t0, remove_life
 	
 	# if ball.y == paddle.y and paddle.x <= ball.x <= paddle.x + 10 units, flip the y velocity
 		# paddle.y
@@ -624,7 +812,16 @@ update_ball:
 		
 		and $t1, $t1, $t2
 		and $t0, $t0, $t1
-	bnez $t0, bounce_ball_y
+	beqz $t0, skip_paddle_collision
+	
+	# Add the x-velocity of the paddle to the ball
+	lb $t0, PADDLE + 8
+	sra $t0, $t0, 2
+	add $s0, $s0, $t0
+	sb $s0, BALL + 8
+	add $s3, $s0, $s1
+	j bounce_ball_y
+	skip_paddle_collision:
 	
 	# if ball.x and ball.y == an active brick
 		srl $a0, $s3, 3
@@ -633,9 +830,19 @@ update_ball:
     	lw $t0, 0($v0)
 		andi $t1, $t0, 0xFF000000 # Grab the high byte
 		beqz $t1, update_ball_positions # Skip if the position doesn't contain a brick
-			# Break the brick
+			# Break the brick by one
+			subi $t1, $t1, 0x01000000
 			andi $t0, $t0, 0xFFFFFF # Grab the bottom 3 bytes
+			or $t0, $t0, $t1
 			sw $t0, 0($v0)
+			
+			# Play a noise
+			li $a0, 72
+			li $a1, 100
+			li $a2, 121
+			li $a3, 75
+			li $v0, 31
+			syscall
 			
 			#if ball.oldx / 8 == ball.x / 8 (ball is attacking from x direction), flip x velocity
 			srl $t0, $s1, 3
